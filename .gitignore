@@ -1,0 +1,2 @@
+# Ignore only the root-level built binary, not similarly named directories elsewhere
+/branch-picker-tui
