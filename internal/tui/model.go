@@ -116,6 +116,29 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			h = 0
 		}
 		m.frame = m.frame.Width(msg.Width - 2)
+
+		// Compute inner content size (list interior after borders/padding)
+		innerW := w - 2
+		if innerW < 0 {
+			innerW = 0
+		}
+		innerH := h - 2
+		if innerH < 0 {
+			innerH = 0
+		}
+
+		// Always show help; constrain it to the inner width to prevent wrapping
+		m.list.SetShowHelp(true)
+		// Clamp width so style never collapses to zero
+		mw := innerW
+		if mw < 1 {
+			mw = 1
+		}
+		s := m.list.Styles
+		s.HelpStyle = lipgloss.NewStyle().Foreground(theme.Surface2).MaxWidth(mw)
+		m.list.Styles = s
+
+		// Apply final size after updating chrome so viewport height is correct
 		m.list.SetSize(w, h)
 		// Size input for inline editing width; actual rendering uses list title updated
 		iw := w - 6
