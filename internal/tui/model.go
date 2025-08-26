@@ -220,6 +220,24 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, cmd
 			}
 
+			// Intercept destructive shortcut before the list handles it to avoid accidental pagination
+			if m.list.FilterState() != list.Filtering && !m.confirmDelete {
+				switch k {
+				case "d":
+					if it, ok := m.list.SelectedItem().(item); ok {
+						// can't delete the synthetic add item
+						if strings.HasPrefix(it.title, "[+]") {
+							return m, nil
+						}
+						// Replace desc with confirmation prompt
+						m.confirmDelete = true
+						m.forceOnConfirm = false
+						m.replaceSelectedItemDesc(lipgloss.NewStyle().Foreground(theme.Surface2).Render("Enter: Yes   Esc: No"))
+						return m, nil
+					}
+				}
+			}
+
 			// Always let the list process the key first to avoid swallowing filter input
 			var listCmd tea.Cmd
 			m.list, listCmd = m.list.Update(msg)
