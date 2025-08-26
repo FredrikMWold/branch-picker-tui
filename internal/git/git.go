@@ -31,7 +31,8 @@ type Branch struct {
 
 // ListBranches lists local branches with current indicator
 func ListBranches() ([]Branch, error) {
-	out, err := runGit("branch", "--format", "%(refname:short)")
+	// Sort local branches by most recent activity (committer date descending)
+	out, err := runGit("branch", "--sort=-committerdate", "--format", "%(refname:short)")
 	if err != nil {
 		return nil, err
 	}
