@@ -38,6 +38,8 @@ type model struct {
 	confirmDelete  bool
 	forceOnConfirm bool
 	// no extra fields; built-in list filtering is used
+	// cache upstream by branch name for restoring descriptions
+	upstream map[string]string
 }
 
 type loadedBranchesMsg struct {
@@ -92,7 +94,7 @@ func initialModel() model {
 		}
 	}
 
-	m := model{state: stateList, list: l, input: in, branchDel: del}
+	m := model{state: stateList, list: l, input: in, branchDel: del, upstream: map[string]string{}}
 	m.frame = lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).BorderForeground(theme.Mauve)
 	return m
 }
@@ -154,15 +156,29 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		items := make([]list.Item, 0, len(msg.branches)+1)
 		items = append(items, item{title: "[+] Create new branch", desc: "Type a new branch name"})
 		var cur string
+		// reset upstream cache
+		m.upstream = map[string]string{}
 		for _, b := range msg.branches {
 			t := b.Name
 			if b.Current {
 				cur = b.Name
 			}
-			desc := "local branch"
-			if b.Current {
-				desc = lipgloss.NewStyle().Foreground(theme.Green).Render("Active")
+			// Build description:
+			// - If upstream exists: "Tracking:" (Blue) + upstream (Text)
+			// - If no upstream: just "No remote" (grayed out)
+			tracking := b.Upstream
+			var desc string
+			if tracking == "" {
+				desc = lipgloss.NewStyle().Foreground(theme.Surface2).Render("No remote")
+			} else {
+				label := lipgloss.NewStyle().Foreground(theme.Blue).Render("Tracking:")
+				val := lipgloss.NewStyle().Foreground(theme.Text).Render(tracking)
+				desc = fmt.Sprintf("%s %s", label, val)
 			}
+			if b.Current {
+				desc += " " + lipgloss.NewStyle().Foreground(theme.Green).Render("Active")
+			}
+			m.upstream[t] = b.Upstream
 			items = append(items, item{title: t, desc: desc})
 		}
 		m.cur = cur
@@ -411,12 +427,20 @@ func (m *model) restoreSelectedItemDesc() {
 	}
 	if it, ok := items[idx].(item); ok {
 		// recompute default desc quickly
-		if it.title == m.cur {
-			it.desc = lipgloss.NewStyle().Foreground(theme.Green).Render("Active")
-		} else if strings.HasPrefix(it.title, "[+]") {
+		if strings.HasPrefix(it.title, "[+]") {
 			it.desc = "Type a new branch name"
 		} else {
-			it.desc = "local branch"
+			tracking := m.upstream[it.title]
+			if tracking == "" {
+				it.desc = lipgloss.NewStyle().Foreground(theme.Surface2).Render("No remote")
+			} else {
+				label := lipgloss.NewStyle().Foreground(theme.Blue).Render("Tracking:")
+				val := lipgloss.NewStyle().Foreground(theme.Text).Render(tracking)
+				it.desc = fmt.Sprintf("%s %s", label, val)
+			}
+			if it.title == m.cur {
+				it.desc += " " + lipgloss.NewStyle().Foreground(theme.Green).Render("Active")
+			}
 		}
 		items[idx] = it
 		m.list.SetItems(items)

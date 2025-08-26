@@ -27,12 +27,17 @@ type Branch struct {
 	Current  bool
 	IsRemote bool
 	Remote   string
+	// Upstream is the configured upstream for the local branch (e.g. "origin/main").
+	// Empty if no upstream is configured.
+	Upstream string
 }
 
 // ListBranches lists local branches with current indicator
 func ListBranches() ([]Branch, error) {
 	// Sort local branches by most recent activity (committer date descending)
-	out, err := runGit("branch", "--sort=-committerdate", "--format", "%(refname:short)")
+	// and include the configured upstream (short) for each branch.
+	// Using for-each-ref gives us consistent access to %(upstream:short).
+	out, err := runGit("for-each-ref", "--sort=-committerdate", "--format", "%(refname:short)\t%(upstream:short)", "refs/heads")
 	if err != nil {
 		return nil, err
 	}
@@ -40,11 +45,21 @@ func ListBranches() ([]Branch, error) {
 	var res []Branch
 	s := bufio.NewScanner(strings.NewReader(out))
 	for s.Scan() {
-		name := strings.TrimSpace(s.Text())
+		line := strings.TrimSpace(s.Text())
+		if line == "" {
+			continue
+		}
+		// Expect: name\tupstream (upstream may be empty)
+		parts := strings.SplitN(line, "\t", 2)
+		name := strings.TrimSpace(parts[0])
+		var upstream string
+		if len(parts) > 1 {
+			upstream = strings.TrimSpace(parts[1])
+		}
 		if name == "" {
 			continue
 		}
-		res = append(res, Branch{Name: name, Current: name == cur})
+		res = append(res, Branch{Name: name, Current: name == cur, Upstream: upstream})
 	}
 	return res, nil
 }
